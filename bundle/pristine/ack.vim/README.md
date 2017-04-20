@@ -78,9 +78,9 @@ The quickfix results window is augmented with these convenience mappings:
     ?    a quick summary of these keys, repeat to close
     o    to open (same as Enter)
     O    to open and close the quickfix window
-    go   to preview file, open but maintain focus on ack.vim results
+    go   to preview file, keeping focus on the results
     t    to open in new tab
-    T    to open in new tab without moving to it
+    T    to open in new tab, keeping focus on the results
     h    to open in horizontal split
     H    to open in horizontal split, keeping focus on the results
     v    to open in vertical split
@@ -122,21 +122,25 @@ nice code clean-up (which ack.vim is now hopefully getting), and ack.vim picked
 up a few features that haven't made their way to ag.vim, like `:AckWindow`,
 optional background search execution with [vim-dispatch], and auto-previewing.
 
+#### I don't want to jump to the first result automatically. ####
+
+Use `:Ack!`, with bang. If you want this behavior most of the time, you might
+like an abbreviation or mapping in your personal config, something like these:
+
+```vim
+cnoreabbrev Ack Ack!
+nnoremap <Leader>a :Ack!<Space>
+```
+
+Most of the `:[L]Ack*` commands support this. Note that this behavior follows
+the convention of Vim's built-in `:grep` and `:make` commands.
+
 [The Silver Searcher]: https://github.com/ggreer/the_silver_searcher
 [sadface]: https://github.com/mileszs/ack.vim/commit/d97090fb502d40229e6976dfec0e06636ba227d5#commitcomment-5771145
 
 ## Changelog
 
 Please see [the Github releases page][releases].
-
-### 1.0.9 (unreleased)
-
-* Fix location list and layout of quickfix when using Dispatch (#154)
-* Fix the quick help overlay clobbering the list mappings
-* Fix `:AckFile` when using Dispatch
-* Restore original `'makeprg'` and `'errorformat'` when using Dispatch
-* Arrow keys also work for auto-preview (#158)
-* Internal refactoring and clean-up
 
 ## Credits
 

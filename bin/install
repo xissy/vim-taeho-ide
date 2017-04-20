@@ -2,7 +2,7 @@
 
 INSTALL_PATH="$(cd $(dirname $0)/../ ; pwd -P )"
 
-cat > "$HOME/.vimrc.go" <<EOF
+cat > "$HOME/.vimrc.taeho" <<EOF
 set runtimepath^="$INSTALL_PATH"
 
 source $INSTALL_PATH/vimrc/basic.vim
@@ -16,6 +16,6 @@ catch
 endtry
 EOF
 
-echo 'Installed w/o any issues! Start producing your Go magic now :-)'
-echo "Hint: vim -u ~/.vimrc.go"
+echo 'Installed w/o any issues! Start producing your vim magic now :-)'
+echo "Hint: vim -u ~/.vimrc.taeho"
 

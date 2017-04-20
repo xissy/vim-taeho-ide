@@ -26,74 +26,49 @@
 let s:save_cpo = &cpo
 set cpo&vim
 
-function! neosnippet#init#_initialize() "{{{
+function! neosnippet#init#_initialize() abort "{{{
   let s:is_initialized = 1
 
-  call s:initialize_script_variables()
   call s:initialize_others()
   call s:initialize_cache()
 endfunction"}}}
 
-function! neosnippet#init#check() "{{{
+function! neosnippet#init#check() abort "{{{
   if !exists('s:is_initialized')
     call neosnippet#init#_initialize()
   endif
 endfunction"}}}
 
-function! s:initialize_script_variables() "{{{
-  " Set runtime dir.
-  let runtime_dir = neosnippet#variables#runtime_dir()
-  let runtime_dir += split(globpath(&runtimepath, 'neosnippets'), '\n')
-  if empty(runtime_dir) && empty(g:neosnippet#disable_runtime_snippets)
-    call neosnippet#util#print_error(
-          \ 'neosnippet default snippets cannot be loaded.')
-    call neosnippet#util#print_error(
-          \ 'You must install neosnippet-snippets or disable runtime snippets.')
-  endif
-  if g:neosnippet#enable_snipmate_compatibility
-    " Load snipMate snippet directories.
-    let runtime_dir += split(globpath(&runtimepath,
-          \ 'snippets'), '\n')
-    if exists('g:snippets_dir')
-      let runtime_dir += neosnippet#util#option2list(g:snippets_dir)
-    endif
-  endif
-  call map(runtime_dir, 'substitute(v:val, "[\\\\/]$", "", "")')
-
-  " Set snippets_dir.
-  let snippets_dir = neosnippet#variables#snippets_dir()
-  for dir in neosnippet#util#option2list(g:neosnippet#snippets_directory)
-    let dir = neosnippet#util#expand(dir)
-    if !isdirectory(dir) && !neosnippet#util#is_sudo()
-      call mkdir(dir, 'p')
-    endif
-    call add(snippets_dir, dir)
-  endfor
-  call map(snippets_dir, 'substitute(v:val, "[\\\\/]$", "", "")')
-endfunction"}}}
-function! s:initialize_cache() "{{{
+function! s:initialize_cache() abort "{{{
   " Make cache for _ snippets.
   call neosnippet#commands#_make_cache('_')
 
   " Initialize check.
   call neosnippet#commands#_make_cache(&filetype)
 endfunction"}}}
-function! s:initialize_others() "{{{
+function! s:initialize_others() abort "{{{
   augroup neosnippet "{{{
     autocmd!
     " Set make cache event.
-    autocmd FileType * call neosnippet#commands#_make_cache(&filetype)
+    autocmd FileType *
+          \ call neosnippet#commands#_make_cache(&filetype)
     " Re make cache events
     autocmd BufWritePost *.snip,*.snippets
           \ call neosnippet#variables#set_snippets({})
     autocmd BufEnter *
           \ call neosnippet#mappings#_clear_select_mode_mappings()
-    autocmd BufWritePre * NeoSnippetClearMarkers
   augroup END"}}}
 
-  if exists('v:completed_item')
-    autocmd neosnippet CompleteDone *
-          \ call neosnippet#handlers#_complete_done()
+  if g:neosnippet#enable_auto_clear_markers
+    autocmd neosnippet CursorMoved,CursorMovedI *
+          \ call neosnippet#handlers#_cursor_moved()
+    autocmd neosnippet BufWritePre *
+          \ call neosnippet#handlers#_all_clear_markers()
+  endif
+
+  if exists('##TextChanged') && exists('##TextChangedI')
+    autocmd neosnippet TextChanged,TextChangedI *
+          \ call neosnippet#handlers#_restore_unnamed_register()
   endif
 
   augroup neosnippet
@@ -107,7 +82,7 @@ function! s:initialize_others() "{{{
       autocmd BufNewFile,BufRead,Syntax *
             \ syntax region neosnippetConcealExpandSnippets
             \ matchgroup=neosnippetExpandSnippets
-            \ start='<`\d\+:\=\|<{\d\+:\=\|<|'
+            \ start='<`\d\+:\=\%(#:\)\?\|<{\d\+:\=\%(#:\)\?\|<|'
             \ end='`>\|}>\||>'
             \ containedin=ALL
             \ concealends oneline
@@ -121,7 +96,7 @@ function! s:initialize_others() "{{{
 
   if g:neosnippet#enable_snipmate_compatibility "{{{
     " For snipMate function.
-    function! Filename(...)
+    function! Filename(...) abort
       let filename = expand('%:t:r')
       if filename == ''
         return a:0 == 2 ? a:2 : ''

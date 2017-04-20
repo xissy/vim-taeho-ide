@@ -31,16 +31,17 @@ let s:edit_options = [
       \ '-runtime',
       \ '-vertical', '-horizontal', '-direction=', '-split',
       \]
+let s:Cache = neosnippet#util#get_vital().import('System.Cache.Deprecated')
 "}}}
 
-function! s:get_list() "{{{
+function! s:get_list() abort "{{{
   if !exists('s:List')
     let s:List = vital#of('neosnippet').import('Data.List')
   endif
   return s:List
 endfunction"}}}
 
-function! neosnippet#commands#_edit(args) "{{{
+function! neosnippet#commands#_edit(args) abort "{{{
   if neosnippet#util#is_sudo()
     call neosnippet#util#print_error(
           \ '"sudo vim" is detected. This feature is disabled.')
@@ -67,6 +68,10 @@ function! neosnippet#commands#_edit(args) "{{{
     return
   endif
 
+  if !isdirectory(snippet_dir) && !neosnippet#util#is_sudo()
+    call mkdir(snippet_dir, 'p')
+  endif
+
   " Edit snippet file.
   let filename = snippet_dir .'/'.filetype
 
@@ -91,7 +96,7 @@ function! neosnippet#commands#_edit(args) "{{{
   endtry
 endfunction"}}}
 
-function! neosnippet#commands#_make_cache(filetype) "{{{
+function! neosnippet#commands#_make_cache(filetype) abort "{{{
   call neosnippet#init#check()
 
   let filetype = a:filetype == '' ?
@@ -104,89 +109,57 @@ function! neosnippet#commands#_make_cache(filetype) "{{{
   if has_key(snippets, filetype)
     return
   endif
+
   let snippets[filetype] = {}
 
   let path = join(neosnippet#helpers#get_snippets_directory(), ',')
-  let snippets_files = []
-  for glob in s:get_list().flatten(
-        \ map(split(get(g:neosnippet#scope_aliases,
-        \   filetype, filetype), '\s*,\s*'), "
-        \   [v:val . '.snip*', v:val .  '/**/*.snip*']
-        \ + (filetype != '_' &&
-        \    !has_key(g:neosnippet#scope_aliases, filetype) ?
-        \    [v:val . '_*.snip*'] : [])"))
-    let snippets_files += split(globpath(path, glob), '\n')
+  let cache_dir = neosnippet#variables#data_dir()
+
+  for filename in s:get_snippets_files(path, filetype)
+    " Clear cache file
+    call s:Cache.deletefile(cache_dir, filename)
+    let snippets[filetype] = extend(snippets[filetype],
+          \ neosnippet#parser#_parse_snippets(filename))
   endfor
 
-  let snippets = neosnippet#variables#snippets()
-  for snippet_file in reverse(s:get_list().uniq(snippets_files))
-    let snippets[filetype] = extend(snippets[filetype],
-          \ neosnippet#parser#_parse(snippet_file))
-  endfor
+  if g:neosnippet#enable_snipmate_compatibility
+    " Load file snippets
+    for filename in s:get_snippet_files(path, filetype)
+      let trigger = fnamemodify(filename, ':t:r')
+      let snippets[filetype][trigger] =
+            \ neosnippet#parser#_parse_snippet(filename, trigger)
+    endfor
+  endif
 endfunction"}}}
 
-function! neosnippet#commands#_source(filename) "{{{
+function! neosnippet#commands#_source(filename) abort "{{{
   call neosnippet#init#check()
 
   let neosnippet = neosnippet#variables#current_neosnippet()
   let neosnippet.snippets = extend(neosnippet.snippets,
-        \ neosnippet#parser#_parse(a:filename))
+        \ neosnippet#parser#_parse_snippets(a:filename))
 endfunction"}}}
 
-function! neosnippet#commands#_clear_markers() "{{{
+function! neosnippet#commands#_clear_markers() abort "{{{
   let expand_stack = neosnippet#variables#expand_stack()
 
   " Get patterns and count.
-  if !&l:modifiable
+  if !&l:modifiable || !&l:modified
         \ || empty(expand_stack)
         \ || neosnippet#variables#current_neosnippet().trigger
     return
   endif
 
-  let expand_info = expand_stack[-1]
-
-  " Search patterns.
-  let [begin, end] = neosnippet#view#_get_snippet_range(
-        \ expand_info.begin_line,
-        \ expand_info.begin_patterns,
-        \ expand_info.end_line,
-        \ expand_info.end_patterns)
-
-  let pos = getpos('.')
-
-  " Found snippet.
-  let found = 0
-  try
-    while neosnippet#view#_search_snippet_range(
-          \ begin, end, expand_info.holder_cnt, 0)
-
-      " Next count.
-      let expand_info.holder_cnt += 1
-      let found = 1
-    endwhile
-
-    " Search placeholder 0.
-    if neosnippet#view#_search_snippet_range(begin, end, 0)
-      let found = 1
-    endif
-  finally
-    if found
-      stopinsert
-    endif
-
-    call setpos('.', pos)
-
-    call neosnippet#variables#clear_expand_stack()
-  endtry
+  call neosnippet#view#_clear_markers(expand_stack[-1])
 endfunction"}}}
 
 " Complete helpers.
-function! neosnippet#commands#_edit_complete(arglead, cmdline, cursorpos) "{{{
+function! neosnippet#commands#_edit_complete(arglead, cmdline, cursorpos) abort "{{{
   return filter(s:edit_options +
         \ neosnippet#commands#_filetype_complete(a:arglead, a:cmdline, a:cursorpos),
         \ 'stridx(v:val, a:arglead) == 0')
 endfunction"}}}
-function! neosnippet#commands#_filetype_complete(arglead, cmdline, cursorpos) "{{{
+function! neosnippet#commands#_filetype_complete(arglead, cmdline, cursorpos) abort "{{{
   " Dup check.
   let ret = {}
   for item in map(
@@ -201,13 +174,13 @@ function! neosnippet#commands#_filetype_complete(arglead, cmdline, cursorpos) "{
 
   return sort(keys(ret))
 endfunction"}}}
-function! neosnippet#commands#_complete_target_snippets(arglead, cmdline, cursorpos) "{{{
+function! neosnippet#commands#_complete_target_snippets(arglead, cmdline, cursorpos) abort "{{{
   return map(filter(values(neosnippet#helpers#get_snippets()),
         \ "stridx(v:val.word, a:arglead) == 0
         \ && v:val.snip =~# neosnippet#get_placeholder_target_marker_pattern()"), 'v:val.word')
 endfunction"}}}
 
-function! s:initialize_options(options) "{{{
+function! s:initialize_options(options) abort "{{{
   let default_options = {
         \ 'runtime' : 0,
         \ 'vertical' : 0,
@@ -224,6 +197,31 @@ function! s:initialize_options(options) "{{{
   endif
 
   return options
+endfunction"}}}
+
+function! s:get_snippets_files(path, filetype) abort "{{{
+  let snippets_files = []
+  for glob in s:get_list().flatten(
+        \ map(split(get(g:neosnippet#scope_aliases,
+        \   a:filetype, a:filetype), '\s*,\s*'), "
+        \   [v:val.'.snip', v:val.'.snippets',
+        \    v:val.'/**/*.snip', v:val.'/**/*.snippets']
+        \ + (a:filetype != '_' &&
+        \    !has_key(g:neosnippet#scope_aliases, a:filetype) ?
+        \    [v:val . '_*.snip', v:val . '_*.snippets'] : [])"))
+    let snippets_files += split(globpath(a:path, glob), '\n')
+  endfor
+  return reverse(s:get_list().uniq(snippets_files))
+endfunction"}}}
+function! s:get_snippet_files(path, filetype) abort "{{{
+  let snippet_files = []
+  for glob in s:get_list().flatten(
+        \ map(split(get(g:neosnippet#scope_aliases,
+        \   a:filetype, a:filetype), '\s*,\s*'), "
+        \   [v:val.'/*.snippet']"))
+    let snippet_files += split(globpath(a:path, glob), '\n')
+  endfor
+  return reverse(s:get_list().uniq(snippet_files))
 endfunction"}}}
 
 let &cpo = s:save_cpo

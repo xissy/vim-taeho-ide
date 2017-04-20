@@ -26,7 +26,7 @@
 let s:save_cpo = &cpo
 set cpo&vim
 
-function! neosnippet#helpers#get_cursor_snippet(snippets, cur_text) "{{{
+function! neosnippet#helpers#get_cursor_snippet(snippets, cur_text) abort "{{{
   let cur_word = matchstr(a:cur_text, '\S\+$')
   if cur_word != '' && has_key(a:snippets, cur_word)
       return cur_word
@@ -44,20 +44,21 @@ function! neosnippet#helpers#get_cursor_snippet(snippets, cur_text) "{{{
   return cur_word
 endfunction"}}}
 
-function! neosnippet#helpers#get_snippets() "{{{
+function! neosnippet#helpers#get_snippets(...) abort "{{{
+  let mode = get(a:000, 0, mode())
+
   call neosnippet#init#check()
 
   let neosnippet = neosnippet#variables#current_neosnippet()
   let snippets = copy(neosnippet.snippets)
   for filetype in s:get_sources_filetypes(neosnippet#helpers#get_filetype())
     call neosnippet#commands#_make_cache(filetype)
-    call extend(snippets,
-          \ neosnippet#variables#snippets()[filetype], 'keep')
+    call extend(snippets, neosnippet#variables#snippets()[filetype])
   endfor
 
   let cur_text = neosnippet#util#get_cur_text()
 
-  if mode() ==# 'i'
+  if mode ==# 'i' || mode ==# 's'
     " Special filters.
     if !s:is_beginning_of_line(cur_text)
       call filter(snippets, '!v:val.options.head')
@@ -66,14 +67,19 @@ function! neosnippet#helpers#get_snippets() "{{{
 
   call filter(snippets, "cur_text =~# get(v:val, 'regexp', '')")
 
+  if exists('b:neosnippet_disable_snippet_triggers')
+    call filter(snippets,
+          \ "index(b:neosnippet_disable_snippet_triggers, v:val.word) < 0")
+  endif
+
   return snippets
 endfunction"}}}
-function! neosnippet#helpers#get_completion_snippets() "{{{
+function! neosnippet#helpers#get_completion_snippets() abort "{{{
   return filter(neosnippet#helpers#get_snippets(),
         \ "!get(v:val.options, 'oneshot', 0)")
 endfunction"}}}
 
-function! neosnippet#helpers#get_snippets_directory() "{{{
+function! neosnippet#helpers#get_snippets_directory() abort "{{{
   let snippets_dir = copy(neosnippet#variables#snippets_dir())
   if !get(g:neosnippet#disable_runtime_snippets,
         \ neosnippet#helpers#get_filetype(),
@@ -84,15 +90,11 @@ function! neosnippet#helpers#get_snippets_directory() "{{{
   return snippets_dir
 endfunction"}}}
 
-function! neosnippet#helpers#get_filetype() "{{{
+function! neosnippet#helpers#get_filetype() abort "{{{
+  " context_filetype.vim installation check.
   if !exists('s:exists_context_filetype')
-    " context_filetype.vim installation check.
-    try
-      call context_filetype#version()
-      let s:exists_context_filetype = 1
-    catch
-      let s:exists_context_filetype = 0
-    endtry
+    silent! call context_filetype#version()
+    let s:exists_context_filetype = exists('*context_filetype#version')
   endif
 
   let context_filetype =
@@ -105,7 +107,7 @@ function! neosnippet#helpers#get_filetype() "{{{
   return context_filetype
 endfunction"}}}
 
-function! neosnippet#helpers#get_selected_text(type, ...) "{{{
+function! neosnippet#helpers#get_selected_text(type, ...) abort "{{{
   let sel_save = &selection
   let &selection = 'inclusive'
   let reg_save = @@
@@ -130,7 +132,7 @@ function! neosnippet#helpers#get_selected_text(type, ...) "{{{
     call setpos('.', pos)
   endtry
 endfunction"}}}
-function! neosnippet#helpers#delete_selected_text(type, ...) "{{{
+function! neosnippet#helpers#delete_selected_text(type, ...) abort "{{{
   let sel_save = &selection
   let &selection = 'inclusive'
   let reg_save = @@
@@ -153,7 +155,7 @@ function! neosnippet#helpers#delete_selected_text(type, ...) "{{{
     call setpos('.', pos)
   endtry
 endfunction"}}}
-function! neosnippet#helpers#substitute_selected_text(type, text) "{{{
+function! neosnippet#helpers#substitute_selected_text(type, text) abort "{{{
   let sel_save = &selection
   let &selection = 'inclusive'
   let reg_save = @@
@@ -177,7 +179,14 @@ function! neosnippet#helpers#substitute_selected_text(type, text) "{{{
   endtry
 endfunction"}}}
 
-function! s:is_beginning_of_line(cur_text) "{{{
+function! neosnippet#helpers#vim2json(expr) abort "{{{
+  return has('patch-7.4.1498') ? js_encode(a:expr) : string(a:expr)
+endfunction "}}}
+function! neosnippet#helpers#json2vim(expr) abort "{{{
+  sandbox return has('patch-7.4.1498') ? js_decode(a:expr) : eval(a:expr)
+endfunction "}}}
+
+function! s:is_beginning_of_line(cur_text) abort "{{{
   let keyword_pattern = '\S\+'
   let cur_keyword_str = matchstr(a:cur_text, keyword_pattern.'$')
   let line_part = a:cur_text[: -1-len(cur_keyword_str)]
@@ -186,14 +195,12 @@ function! s:is_beginning_of_line(cur_text) "{{{
   return prev_word_end <= 0
 endfunction"}}}
 
-function! s:get_sources_filetypes(filetype) "{{{
+function! s:get_sources_filetypes(filetype) abort "{{{
   let filetypes =
-        \ exists('*neocomplete#get_source_filetypes') ?
-        \   neocomplete#get_source_filetypes(a:filetype) :
-        \ exists('*neocomplcache#get_source_filetypes') ?
-        \   neocomplcache#get_source_filetypes(a:filetype) :
+        \ exists('*context_filetype#get_filetypes') ?
+        \   context_filetype#get_filetypes(a:filetype) :
         \ split(((a:filetype == '') ? 'nothing' : a:filetype), '\.')
-  return filetypes + ['_']
+  return ['_'] + filetypes
 endfunction"}}}
 
 let &cpo = s:save_cpo
