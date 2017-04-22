@@ -1,5 +1,6 @@
 let NERDTreeShowHidden=1
 
+set t_Co=256
 let g:seoul256_background = 234
 colo seoul256
 let g:airline_theme='onedark'
