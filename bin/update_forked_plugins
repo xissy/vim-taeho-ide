@@ -17,6 +17,7 @@ vim-airline https://github.com/vim-airline/vim-airline
 vim-airline-themes https://github.com/vim-airline/vim-airline-themes
 neosnippet-snippets https://github.com/Shougo/neosnippet-snippets
 vim-godebug https://github.com/xissy/vim-godebug
+ale https://github.com/w0rp/ale
 """.strip()
 
 GITHUB_ZIP = '%s/archive/master.zip'
