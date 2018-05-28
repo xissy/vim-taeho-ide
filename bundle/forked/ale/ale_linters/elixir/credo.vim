@@ -11,9 +11,9 @@ function! ale_linters#elixir#credo#Handle(buffer, lines) abort
         let l:type = l:match[3]
         let l:text = l:match[4]
 
-        if l:type ==# 'C'
+        if l:type is# 'C'
             let l:type = 'E'
-        elseif l:type ==# 'R'
+        elseif l:type is# 'R'
             let l:type = 'W'
         endif
 
@@ -32,6 +32,6 @@ endfunction
 call ale#linter#Define('elixir', {
 \   'name': 'credo',
 \   'executable': 'mix',
-\   'command': 'mix credo suggest --format=flycheck --read-from-stdin %s',
+\   'command': 'mix help credo && mix credo suggest --format=flycheck --read-from-stdin %s',
 \   'callback': 'ale_linters#elixir#credo#Handle',
 \})

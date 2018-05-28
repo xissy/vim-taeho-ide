@@ -19,6 +19,7 @@ let g:indentLine_enabled = get(g:, 'indentLine_enabled', 1)
 let g:indentLine_fileType = get(g:, 'indentLine_fileType', [])
 let g:indentLine_fileTypeExclude = get(g:, 'indentLine_fileTypeExclude', [])
 let g:indentLine_bufNameExclude = get(g:, 'indentLine_bufNameExclude', [])
+let g:indentLine_bufTypeExclude = get(g:, 'indentLine_bufTypeExclude', [])
 let g:indentLine_showFirstIndentLevel = get(g:, 'indentLine_showFirstIndentLevel', 0)
 let g:indentLine_maxLines = get(g:, 'indentLine_maxLines', 3000)
 let g:indentLine_setColors = get(g:, 'indentLine_setColors', 1)
@@ -44,6 +45,12 @@ function! s:InitColor()
         let term_color = g:indentLine_color_term
     endif
 
+    if !exists("g:indentLine_bgcolor_term")
+        let term_bgcolor = "NONE"
+    else
+        let term_bgcolor = g:indentLine_bgcolor_term
+    endif
+
     if !exists("g:indentLine_color_gui")
         if &background ==# "light"
             let gui_color = "Grey70"
@@ -54,8 +61,14 @@ function! s:InitColor()
         let gui_color = g:indentLine_color_gui
     endif
 
-    execute "highlight Conceal ctermfg=" . term_color . " ctermbg=NONE"
-    execute "highlight Conceal guifg=" . gui_color .  " guibg=NONE"
+    if !exists("g:indentLine_bgcolor_gui")
+        let gui_bgcolor = "NONE"
+    else
+        let gui_bgcolor = g:indentLine_bgcolor_gui
+    endif
+
+    execute "highlight Conceal cterm=NONE ctermfg=" . term_color . " ctermbg=" . term_bgcolor
+    execute "highlight Conceal gui=NONE guifg=" . gui_color .  " guibg=" . gui_bgcolor
 
     if &term ==# "linux"
         if &background ==# "light"
@@ -72,10 +85,20 @@ function! s:SetConcealOption()
     if !g:indentLine_setConceal
         return
     endif
-    if !exists("b:indentLine_ConcealOptionSet")
+    if !(exists("b:indentLine_ConcealOptionSet") && b:indentLine_ConcealOptionSet)
         let b:indentLine_ConcealOptionSet = 1
+        let b:indentLine_original_concealcursor = &l:concealcursor
+        let b:indentLine_original_conceallevel = &l:conceallevel
         let &l:concealcursor = exists("g:indentLine_concealcursor") ? g:indentLine_concealcursor : "inc"
         let &l:conceallevel = exists("g:indentLine_conceallevel") ? g:indentLine_conceallevel : "2"
+    endif
+endfunction
+
+function! s:ResetConcealOption()
+    if exists("b:indentLine_ConcealOptionSet") && b:indentLine_ConcealOptionSet
+        let &l:concealcursor = b:indentLine_original_concealcursor
+        let &l:conceallevel = b:indentLine_original_conceallevel
+        let b:indentLine_ConcealOptionSet = 0
     endif
 endfunction
 
@@ -149,6 +172,7 @@ function! s:IndentLinesDisable()
             let w:indentLine_indentLineId = []
         endif
 
+        call s:ResetConcealOption()
         return
     endif
 
@@ -195,6 +219,10 @@ endfunction
 "{{{1 function! s:Filter()
 function! s:Filter()
     if index(g:indentLine_fileTypeExclude, &filetype) != -1
+        return 0
+    endif
+
+    if index(g:indentLine_bufTypeExclude, &buftype) != -1
         return 0
     endif
 
@@ -323,8 +351,10 @@ augroup indentLine
     autocmd!
     if g:indentLine_newVersion
         autocmd BufRead,BufNewFile,ColorScheme,Syntax * call <SID>InitColor()
+        if exists("##WinNew")
+            autocmd WinNew * call <SID>Setup()
+        endif
         autocmd BufWinEnter * call <SID>IndentLinesDisable() | call <SID>LeadingSpaceDisable() | call <SID>Setup()
-        autocmd WinEnter * call <SID>Setup()
         autocmd FileType * call <SID>Disable()
     else
         autocmd BufWinEnter * call <SID>Setup()

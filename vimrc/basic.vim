@@ -38,7 +38,7 @@ nnoremap JJJJ <nop>
 set so=999
 
 " add vertical lines on columns
-set colorcolumn=80,120
+"set colorcolumn=80,120
 
 " Avoid garbled characters in Chinese language windows OS
 let $LANG='en'

@@ -46,7 +46,7 @@ function! ale_linters#d#dmd#DMDCommand(buffer, dub_output) abort
         endif
     endfor
 
-    return 'dmd '. join(l:import_list) . ' -o- -vcolumns -c %t'
+    return 'dmd '. join(l:import_list) . ' -o- -wi -vcolumns -c %t'
 endfunction
 
 function! ale_linters#d#dmd#Handle(buffer, lines) abort
@@ -60,7 +60,7 @@ function! ale_linters#d#dmd#Handle(buffer, lines) abort
         call add(l:output, {
         \   'lnum': l:match[1],
         \   'col': l:match[2],
-        \   'type': l:match[3] ==# 'Warning' ? 'W' : 'E',
+        \   'type': l:match[3] is# 'Warning' ? 'W' : 'E',
         \   'text': l:match[4],
         \})
     endfor

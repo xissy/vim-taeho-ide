@@ -1,32 +1,22 @@
 " Author: keith <k@keith.so>
 " Description: pylint for python files
 
-let g:ale_python_pylint_executable =
-\   get(g:, 'ale_python_pylint_executable', 'pylint')
-
-let g:ale_python_pylint_options =
-\   get(g:, 'ale_python_pylint_options', '')
-
-let g:ale_python_pylint_use_global = get(g:, 'ale_python_pylint_use_global', 0)
+call ale#Set('python_pylint_executable', 'pylint')
+call ale#Set('python_pylint_options', '')
+call ale#Set('python_pylint_use_global', get(g:, 'ale_use_global_executables', 0))
+call ale#Set('python_pylint_change_directory', 1)
 
 function! ale_linters#python#pylint#GetExecutable(buffer) abort
-    if !ale#Var(a:buffer, 'python_pylint_use_global')
-        let l:virtualenv = ale#python#FindVirtualenv(a:buffer)
-
-        if !empty(l:virtualenv)
-            let l:ve_pylint = l:virtualenv . '/bin/pylint'
-
-            if executable(l:ve_pylint)
-                return l:ve_pylint
-            endif
-        endif
-    endif
-
-    return ale#Var(a:buffer, 'python_pylint_executable')
+    return ale#python#FindExecutable(a:buffer, 'python_pylint', ['pylint'])
 endfunction
 
 function! ale_linters#python#pylint#GetCommand(buffer) abort
-    return ale#Escape(ale_linters#python#pylint#GetExecutable(a:buffer))
+    let l:cd_string = ale#Var(a:buffer, 'python_pylint_change_directory')
+    \   ? ale#path#BufferCdString(a:buffer)
+    \   : ''
+
+    return l:cd_string
+    \   . ale#Escape(ale_linters#python#pylint#GetExecutable(a:buffer))
     \   . ' ' . ale#Var(a:buffer, 'python_pylint_options')
     \   . ' --output-format text --msg-template="{path}:{line}:{column}: {msg_id} ({symbol}) {msg}" --reports n'
     \   . ' %s'
@@ -36,20 +26,20 @@ function! ale_linters#python#pylint#Handle(buffer, lines) abort
     " Matches patterns like the following:
     "
     " test.py:4:4: W0101 (unreachable) Unreachable code
-    let l:pattern = '\v^[^:]+:(\d+):(\d+): ([[:alnum:]]+) \((.*)\) (.*)$'
+    let l:pattern = '\v^[a-zA-Z]?:?[^:]+:(\d+):(\d+): ([[:alnum:]]+) \(([^(]*)\) (.*)$'
     let l:output = []
 
     for l:match in ale#util#GetMatches(a:lines, l:pattern)
         "let l:failed = append(0, l:match)
         let l:code = l:match[3]
 
-        if (l:code ==# 'C0303')
+        if (l:code is# 'C0303')
         \ && !ale#Var(a:buffer, 'warn_about_trailing_whitespace')
             " Skip warnings for trailing whitespace if the option is off.
             continue
         endif
 
-        if l:code ==# 'I0011'
+        if l:code is# 'I0011'
             " Skip 'Locally disabling' message
              continue
         endif
@@ -57,8 +47,9 @@ function! ale_linters#python#pylint#Handle(buffer, lines) abort
         call add(l:output, {
         \   'lnum': l:match[1] + 0,
         \   'col': l:match[2] + 1,
-        \   'text': l:code . ': ' . l:match[5],
-        \   'type': l:code[:0] ==# 'E' ? 'E' : 'W',
+        \   'text': l:match[5],
+        \   'code': l:match[4],
+        \   'type': l:code[:0] is# 'E' ? 'E' : 'W',
         \})
     endfor
 

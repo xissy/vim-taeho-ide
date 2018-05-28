@@ -1,6 +1,14 @@
 " Author: KabbAmine <amine.kabb@gmail.com>
 " Description: Statusline related function(s)
 
+" remove in 2.0
+"
+" A deprecated setting for ale#statusline#Status()
+" See :help ale#statusline#Count() for getting status reports.
+let g:ale_statusline_format = get(g:, 'ale_statusline_format',
+\   ['%d error(s)', '%d warning(s)', 'OK']
+\)
+
 function! s:CreateCountDict() abort
     " Keys 0 and 1 are for backwards compatibility.
     " The count object used to be a List of [error_count, warning_count].
@@ -22,19 +30,20 @@ function! ale#statusline#Update(buffer, loclist) abort
         return
     endif
 
+    let l:loclist = filter(copy(a:loclist), 'v:val.bufnr == a:buffer')
     let l:count = s:CreateCountDict()
-    let l:count.total = len(a:loclist)
+    let l:count.total = len(l:loclist)
 
-    for l:entry in a:loclist
-        if l:entry.type ==# 'W'
-            if get(l:entry, 'sub_type', '') ==# 'style'
+    for l:entry in l:loclist
+        if l:entry.type is# 'W'
+            if get(l:entry, 'sub_type', '') is# 'style'
                 let l:count.style_warning += 1
             else
                 let l:count.warning += 1
             endif
-        elseif l:entry.type ==# 'I'
+        elseif l:entry.type is# 'I'
             let l:count.info += 1
-        elseif get(l:entry, 'sub_type', '') ==# 'style'
+        elseif get(l:entry, 'sub_type', '') is# 'style'
             let l:count.style_error += 1
         else
             let l:count.error += 1
@@ -50,14 +59,14 @@ endfunction
 
 " Get the counts for the buffer, and update the counts if needed.
 function! s:GetCounts(buffer) abort
-if !exists('g:ale_buffer_info') || !has_key(g:ale_buffer_info, a:buffer)
-    return s:CreateCountDict()
-endif
+    if !exists('g:ale_buffer_info') || !has_key(g:ale_buffer_info, a:buffer)
+        return s:CreateCountDict()
+    endif
 
-" Cache is cold, so manually ask for an update.
-if !has_key(g:ale_buffer_info[a:buffer], 'count')
-    call ale#statusline#Update(a:buffer, g:ale_buffer_info[a:buffer].loclist)
-endif
+    " Cache is cold, so manually ask for an update.
+    if !has_key(g:ale_buffer_info[a:buffer], 'count')
+        call ale#statusline#Update(a:buffer, g:ale_buffer_info[a:buffer].loclist)
+    endif
 
     return g:ale_buffer_info[a:buffer].count
 endfunction
@@ -89,11 +98,18 @@ function! s:StatusForListFormat() abort
     return l:res
 endfunction
 
+" remove in 2.0
+"
 " Returns a formatted string that can be integrated in the statusline.
 "
 " This function is deprecated, and should not be used. Use the airline plugin
 " instead, or write your own status function with ale#statusline#Count()
 function! ale#statusline#Status() abort
+    if !get(g:, 'ale_deprecation_ale_statusline_status', 0)
+        execute 'echom ''ale#statusline#Status() is deprecated, use ale#statusline#Count() to write your own function.'''
+        let g:ale_deprecation_ale_statusline_status = 1
+    endif
+
     if !exists('g:ale_statusline_format')
         return 'OK'
     endif

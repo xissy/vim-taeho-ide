@@ -17,6 +17,11 @@ IFS=':' read -r -a INPUT <<< "$1"
 FILE=${INPUT[0]}
 CENTER=${INPUT[1]}
 
+if [[ $1 =~ ^[A-Z]:\\ ]]; then
+  FILE=$FILE:${INPUT[1]}
+  CENTER=${INPUT[2]}
+fi
+
 if [ ! -r "$FILE" ]; then
   echo "File not found ${FILE}"
   exit 1
@@ -31,9 +36,7 @@ if [ -z "$CENTER" ]; then
   CENTER=1
 fi
 
-if [ -n "$FZF_PREVIEW_HEIGHT" ]; then
-  LINES=$FZF_PREVIEW_HEIGHT
-else
+if [ -z "$LINES" ]; then
   if [ -r /dev/tty ]; then
     LINES=$(stty size < /dev/tty | awk '{print $1}')
   else

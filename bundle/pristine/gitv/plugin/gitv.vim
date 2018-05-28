@@ -568,6 +568,7 @@ fu! s:AddRebaseMessage(filePath) "{{{
     elseif s:RebaseIsEnabled()
         call append(0, '= '.s:rebaseMsg)
     else
+        " TODO: this will fail if there's no preview window
         call s:MoveIntoPreviewAndExecute('call s:CleanupRebasePreview()', 0)
     endif
 endf "}}}
@@ -683,12 +684,12 @@ fu! s:SetDefaultMappings() "{{{
         \'bindings': 'O' ,
         \'permanentBindings': '<Plug>(gitv-tabedit)'
     \}
-    let s:defaultMappings.vsplitCommit = {
+    let s:defaultMappings.vertSplitCommit = {
         \'cmd': ':<C-U>call <SID>OpenGitvCommit("Gvsplit", 0)<cr>',
         \'bindings': 's',
         \'permanentBindings': '<Plug>(gitv-vsplit)'
     \}
-    let s:defaultMappings.previousCommit = {
+    let s:defaultMappings.prevCommit = {
         \'cmd': ':<C-U>call <SID>JumpToCommit(0)<cr>',
         \'bindings': 'J',
         \'permanentBindings': '<Plug>(gitv-previous-commit)'
@@ -719,7 +720,7 @@ fu! s:SetDefaultMappings() "{{{
     \}
     let s:defaultMappings.vstat = {
         \'mapCmd': 'vnoremap',
-        \'cmd': ':<C-U>call <SID>StatGitvCommit()<cr>',
+        \'cmd': ':call <SID>StatGitvCommit()<cr>',
         \'bindings': 'S'
     \}
 
@@ -1625,7 +1626,7 @@ fu! s:RebaseGetRange(first, last, fromPlaceholder, ontoPlaceholder) "{{{
     endif
     if a:first != a:last || type(a:ontoPlaceholder) != 1
         let ontoRefs = s:RebaseGetRefs(onto)
-        if !len(onto)
+        if !len(ontoRefs)
             return []
         endif
     else
@@ -1656,7 +1657,7 @@ fu! s:RebaseGetRange(first, last, fromPlaceholder, ontoPlaceholder) "{{{
         let fromChoice = fromRefs
     endif
     if a:first != a:last || type(a:ontoPlaceholder) != 1
-        let ontoChoice = s:RebaseGetChoice(onto, 'onto')
+        let ontoChoice = s:RebaseGetChoice(ontoRefs, 'onto')
         if ontoChoice == ''
             return []
         endif

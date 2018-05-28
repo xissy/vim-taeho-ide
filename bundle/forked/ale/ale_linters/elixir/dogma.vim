@@ -11,9 +11,9 @@ function! ale_linters#elixir#dogma#Handle(buffer, lines) abort
         let l:type = l:match[3]
         let l:text = l:match[4]
 
-        if l:type ==# 'C'
+        if l:type is# 'C'
             let l:type = 'E'
-        elseif l:type ==# 'R'
+        elseif l:type is# 'R'
             let l:type = 'W'
         endif
 
@@ -32,7 +32,7 @@ endfunction
 call ale#linter#Define('elixir', {
 \   'name': 'dogma',
 \   'executable': 'mix',
-\   'command': 'mix dogma %s --format=flycheck',
+\   'command': 'mix help dogma && mix dogma %s --format=flycheck',
 \   'lint_file': 1,
 \   'callback': 'ale_linters#elixir#dogma#Handle',
 \})

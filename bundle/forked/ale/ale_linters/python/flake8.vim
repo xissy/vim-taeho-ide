@@ -1,41 +1,26 @@
 " Author: w0rp <devw0rp@gmail.com>
 " Description: flake8 for python files
 
-let g:ale_python_flake8_executable =
-\   get(g:, 'ale_python_flake8_executable', 'flake8')
-
+" remove in 2.0
 " Support an old setting as a fallback.
+let s:deprecation_warning_echoed = 0
 let s:default_options = get(g:, 'ale_python_flake8_args', '')
-let g:ale_python_flake8_options =
-\   get(g:, 'ale_python_flake8_options', s:default_options)
-let g:ale_python_flake8_use_global = get(g:, 'ale_python_flake8_use_global', 0)
 
-" A map from Python executable paths to semver strings parsed for those
-" executables, so we don't have to look up the version number constantly.
-let s:version_cache = {}
+call ale#Set('python_flake8_executable', 'flake8')
+call ale#Set('python_flake8_options', s:default_options)
+call ale#Set('python_flake8_use_global', get(g:, 'ale_use_global_executables', 0))
+call ale#Set('python_flake8_change_directory', 1)
 
 function! s:UsingModule(buffer) abort
     return ale#Var(a:buffer, 'python_flake8_options') =~# ' *-m flake8'
 endfunction
 
 function! ale_linters#python#flake8#GetExecutable(buffer) abort
-    if !s:UsingModule(a:buffer) && !ale#Var(a:buffer, 'python_flake8_use_global')
-        let l:virtualenv = ale#python#FindVirtualenv(a:buffer)
-
-        if !empty(l:virtualenv)
-            let l:ve_flake8 = l:virtualenv . '/bin/flake8'
-
-            if executable(l:ve_flake8)
-                return l:ve_flake8
-            endif
-        endif
+    if !s:UsingModule(a:buffer)
+        return ale#python#FindExecutable(a:buffer, 'python_flake8', ['flake8'])
     endif
 
     return ale#Var(a:buffer, 'python_flake8_executable')
-endfunction
-
-function! ale_linters#python#flake8#ClearVersionCache() abort
-    let s:version_cache = {}
 endfunction
 
 function! ale_linters#python#flake8#VersionCheck(buffer) abort
@@ -43,54 +28,42 @@ function! ale_linters#python#flake8#VersionCheck(buffer) abort
 
     " If we have previously stored the version number in a cache, then
     " don't look it up again.
-    if has_key(s:version_cache, l:executable)
+    if ale#semver#HasVersion(l:executable)
         " Returning an empty string skips this command.
         return ''
     endif
 
-    let l:executable = ale#Escape(ale_linters#python#flake8#GetExecutable(a:buffer))
+    let l:executable = ale#Escape(l:executable)
     let l:module_string = s:UsingModule(a:buffer) ? ' -m flake8' : ''
 
     return l:executable . l:module_string . ' --version'
 endfunction
 
-" Get the flake8 version from the output, or the cache.
-function! s:GetVersion(buffer, version_output) abort
-    let l:executable = ale_linters#python#flake8#GetExecutable(a:buffer)
-    let l:version = []
-
-    " Get the version from the cache.
-    if has_key(s:version_cache, l:executable)
-        return s:version_cache[l:executable]
-    endif
-
-    if !empty(a:version_output)
-        " Parse the version string, and store it in the cache.
-        let l:version = ale#semver#Parse(a:version_output[0])
-        let s:version_cache[l:executable] = l:version
-    endif
-
-    return l:version
-endfunction
-
-" flake8 versions 3 and up support the --stdin-display-name argument.
-function! s:SupportsDisplayName(version) abort
-    return !empty(a:version) && ale#semver#GreaterOrEqual(a:version, [3, 0, 0])
-endfunction
-
 function! ale_linters#python#flake8#GetCommand(buffer, version_output) abort
-    let l:version = s:GetVersion(a:buffer, a:version_output)
+    " remove in 2.0
+    if exists('g:ale_python_flake8_args') && !s:deprecation_warning_echoed
+        execute 'echom ''Rename your g:ale_python_flake8_args setting to g:ale_python_flake8_options instead. Support for this will removed in ALE 2.0.'''
+        let s:deprecation_warning_echoed = 1
+    endif
+
+    let l:cd_string = ale#Var(a:buffer, 'python_flake8_change_directory')
+    \   ? ale#path#BufferCdString(a:buffer)
+    \   : ''
+    let l:executable = ale_linters#python#flake8#GetExecutable(a:buffer)
+    let l:version = ale#semver#GetVersion(l:executable, a:version_output)
 
     " Only include the --stdin-display-name argument if we can parse the
     " flake8 version, and it is recent enough to support it.
-    let l:display_name_args = s:SupportsDisplayName(l:version)
+    let l:display_name_args = ale#semver#GTE(l:version, [3, 0, 0])
     \   ? ' --stdin-display-name %s'
     \   : ''
 
     let l:options = ale#Var(a:buffer, 'python_flake8_options')
 
-    return ale#Escape(ale_linters#python#flake8#GetExecutable(a:buffer))
+    return l:cd_string
+    \   . ale#Escape(l:executable)
     \   . (!empty(l:options) ? ' ' . l:options : '')
+    \   . ' --format=default'
     \   . l:display_name_args . ' -'
 endfunction
 
@@ -123,25 +96,37 @@ function! ale_linters#python#flake8#Handle(buffer, lines) abort
     for l:match in ale#util#GetMatches(a:lines, l:pattern)
         let l:code = l:match[3]
 
-        if (l:code ==# 'W291' || l:code ==# 'W293')
+        if (l:code is# 'W291' || l:code is# 'W293')
         \ && !ale#Var(a:buffer, 'warn_about_trailing_whitespace')
             " Skip warnings for trailing whitespace if the option is off.
+            continue
+        endif
+
+        if l:code is# 'W391'
+        \&& !ale#Var(a:buffer, 'warn_about_trailing_blank_lines')
+            " Skip warnings for trailing blank lines if the option is off
             continue
         endif
 
         let l:item = {
         \   'lnum': l:match[1] + 0,
         \   'col': l:match[2] + 0,
-        \   'text': l:code . ': ' . l:match[4],
+        \   'text': l:match[4],
+        \   'code': l:code,
         \   'type': 'W',
         \}
 
-        if l:code[:0] ==# 'F'
+        if l:code[:0] is# 'F'
+            if l:code isnot# 'F401'
+                let l:item.type = 'E'
+            endif
+        elseif l:code[:0] is# 'E'
             let l:item.type = 'E'
-        elseif l:code[:0] ==# 'E'
-            let l:item.type = 'E'
-            let l:item.sub_type = 'style'
-        elseif l:code[:0] ==# 'W'
+
+            if l:code isnot# 'E999' && l:code isnot# 'E112'
+                let l:item.sub_type = 'style'
+            endif
+        elseif l:code[:0] is# 'W'
             let l:item.sub_type = 'style'
         endif
 

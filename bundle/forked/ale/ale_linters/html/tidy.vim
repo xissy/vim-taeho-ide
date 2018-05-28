@@ -3,11 +3,19 @@
 
 " CLI options
 let g:ale_html_tidy_executable = get(g:, 'ale_html_tidy_executable', 'tidy')
+" remove in 2.0
 " Look for the old _args variable first.
+let s:deprecation_warning_echoed = 0
 let s:default_options = get(g:, 'ale_html_tidy_args', '-q -e -language en')
 let g:ale_html_tidy_options = get(g:, 'ale_html_tidy_options', s:default_options)
 
 function! ale_linters#html#tidy#GetCommand(buffer) abort
+    " remove in 2.0
+    if exists('g:ale_html_tidy_args') && !s:deprecation_warning_echoed
+        execute 'echom ''Rename your g:ale_html_tidy_args setting to g:ale_html_tidy_options instead. Support for this will removed in ALE 2.0.'''
+        let s:deprecation_warning_echoed = 1
+    endif
+
     " Specify file encoding in options
     " (Idea taken from https://github.com/scrooloose/syntastic/blob/master/syntax_checkers/html/tidy.vim)
     let l:file_encoding = get({
@@ -25,8 +33,16 @@ function! ale_linters#html#tidy#GetCommand(buffer) abort
     \   'utf-8':        '-utf8',
     \ }, &fileencoding, '-utf8')
 
+    " On macOS, old tidy (released on 31 Oct 2006) is installed. It does not
+    " consider HTML5 so we should avoid it.
+    let l:executable = ale#Var(a:buffer, 'html_tidy_executable')
+    if has('mac') && l:executable is# 'tidy' && exists('*exepath')
+    \  && exepath(l:executable) is# '/usr/bin/tidy'
+        return ''
+    endif
+
     return printf('%s %s %s -',
-    \   ale#Var(a:buffer, 'html_tidy_executable'),
+    \   l:executable,
     \   ale#Var(a:buffer, 'html_tidy_options'),
     \   l:file_encoding
     \)
@@ -46,7 +62,7 @@ function! ale_linters#html#tidy#Handle(buffer, lines) abort
     for l:match in ale#util#GetMatches(a:lines, l:pattern)
         let l:line = l:match[1] + 0
         let l:col = l:match[2] + 0
-        let l:type = l:match[3] ==# 'Error' ? 'E' : 'W'
+        let l:type = l:match[3] is# 'Error' ? 'E' : 'W'
         let l:text = l:match[4]
 
         call add(l:output, {
